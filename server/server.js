@@ -7,9 +7,9 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: "*" } });
 
-// Serve static files from the React build
-const distPath = path.join(__dirname, '../client/dist');
-app.use(express.static(distPath));
+// ✅ FIX 1: Changed '../client/dist' → 'client/dist'
+// server.js lives at the repo root, so client/ is a sibling folder, not ../client/
+app.use(express.static(path.join(__dirname, 'client/dist')));
 
 const rooms = new Map();
 
@@ -29,11 +29,13 @@ io.on('connection', (socket) => {
     } else {
       const room = rooms.get(roomId);
       room.users.set(socket.id, { username });
+      // Send current state to late joiner
       socket.emit('initial_sync', room.videoState);
     }
     broadcastUsers(roomId);
   });
 
+  // Host Actions
   socket.on('play', ({ roomId, timestamp }) => {
     const room = rooms.get(roomId);
     if (!room || room.hostId !== socket.id) return;
@@ -55,6 +57,7 @@ io.on('connection', (socket) => {
     socket.to(roomId).emit('sync_seek', { timestamp });
   });
 
+  // Heartbeat for Drift Correction
   socket.on('heartbeat', ({ roomId, timestamp, isPlaying }) => {
     const room = rooms.get(roomId);
     if (!room || room.hostId !== socket.id) return;
@@ -89,9 +92,9 @@ function broadcastUsers(roomId) {
   io.to(roomId).emit('users_update', { users, count: users.length });
 }
 
-// Serve index.html for all other routes
+// ✅ FIX 1 (cont): Same path fix for catch-all route
 app.get('*', (req, res) => {
-  res.sendFile(path.join(distPath, 'index.html'));
+  res.sendFile(path.join(__dirname, 'client/dist', 'index.html'));
 });
 
 const PORT = process.env.PORT || 3000;
