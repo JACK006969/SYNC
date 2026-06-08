@@ -7,8 +7,9 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: "*" } });
 
-// Serve the built React frontend
-app.use(express.static(path.join(__dirname, '../client/dist')));
+// Serve static files from the React build
+const distPath = path.join(__dirname, '../client/dist');
+app.use(express.static(distPath));
 
 const rooms = new Map();
 
@@ -28,13 +29,11 @@ io.on('connection', (socket) => {
     } else {
       const room = rooms.get(roomId);
       room.users.set(socket.id, { username });
-      // Send current state to late joiner
       socket.emit('initial_sync', room.videoState);
     }
     broadcastUsers(roomId);
   });
 
-  // Host Actions
   socket.on('play', ({ roomId, timestamp }) => {
     const room = rooms.get(roomId);
     if (!room || room.hostId !== socket.id) return;
@@ -56,7 +55,6 @@ io.on('connection', (socket) => {
     socket.to(roomId).emit('sync_seek', { timestamp });
   });
 
-  // Heartbeat for Drift Correction
   socket.on('heartbeat', ({ roomId, timestamp, isPlaying }) => {
     const room = rooms.get(roomId);
     if (!room || room.hostId !== socket.id) return;
@@ -91,9 +89,9 @@ function broadcastUsers(roomId) {
   io.to(roomId).emit('users_update', { users, count: users.length });
 }
 
-// Catch-all for React Router
+// Serve index.html for all other routes
 app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, '../client/dist/index.html'));
+  res.sendFile(path.join(distPath, 'index.html'));
 });
 
 const PORT = process.env.PORT || 3000;
