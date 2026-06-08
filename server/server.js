@@ -7,9 +7,8 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: "*" } });
 
-// ✅ FIX 1: Changed '../client/dist' → 'client/dist'
-// server.js lives at the repo root, so client/ is a sibling folder, not ../client/
-app.use(express.static(path.join(__dirname, 'client/dist')));
+// ✅ ../client/dist resolves to /opt/render/project/src/client/dist
+app.use(express.static(path.join(__dirname, '../client/dist')));
 
 const rooms = new Map();
 
@@ -29,13 +28,11 @@ io.on('connection', (socket) => {
     } else {
       const room = rooms.get(roomId);
       room.users.set(socket.id, { username });
-      // Send current state to late joiner
       socket.emit('initial_sync', room.videoState);
     }
     broadcastUsers(roomId);
   });
 
-  // Host Actions
   socket.on('play', ({ roomId, timestamp }) => {
     const room = rooms.get(roomId);
     if (!room || room.hostId !== socket.id) return;
@@ -57,7 +54,6 @@ io.on('connection', (socket) => {
     socket.to(roomId).emit('sync_seek', { timestamp });
   });
 
-  // Heartbeat for Drift Correction
   socket.on('heartbeat', ({ roomId, timestamp, isPlaying }) => {
     const room = rooms.get(roomId);
     if (!room || room.hostId !== socket.id) return;
@@ -69,7 +65,7 @@ io.on('connection', (socket) => {
     if (!currentRoomId || !rooms.has(currentRoomId)) return;
     const room = rooms.get(currentRoomId);
     room.users.delete(socket.id);
-    
+
     if (room.hostId === socket.id) {
       if (room.users.size > 0) {
         const newHostId = room.users.keys().next().value;
@@ -92,9 +88,9 @@ function broadcastUsers(roomId) {
   io.to(roomId).emit('users_update', { users, count: users.length });
 }
 
-// ✅ FIX 1 (cont): Same path fix for catch-all route
+// ✅ ../client/dist resolves to /opt/render/project/src/client/dist
 app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, 'client/dist', 'index.html'));
+  res.sendFile(path.join(__dirname, '../client/dist', 'index.html'));
 });
 
 const PORT = process.env.PORT || 3000;
